@@ -18,12 +18,14 @@ import threading
 try:
     from .agent_bridge import *
     from . import run_ui_agent_https
+    from .chat_ui_patch import add_chat_ui_route
 except ImportError:
     # If running from parent directory, add current directory to path
     current_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, current_dir)
     from agent_bridge import *
     import run_ui_agent_https
+    from chat_ui_patch import add_chat_ui_route
 
 
 class NANDA:
@@ -117,6 +119,18 @@ class NANDA:
         )
         print(f"Logging conversations to {os.path.abspath(LOG_DIR)}")
         print(f"🔧 Using custom improvement logic: {self.improvement_logic.__name__}")
+
+        # Patch the run_server to add chat UI
+        from python_a2a.server.http import create_flask_app
+        original_create_flask_app = create_flask_app
+
+        def patched_create_flask_app(agent):
+            app = original_create_flask_app(agent)
+            app = add_chat_ui_route(app)
+            return app
+
+        import python_a2a.server.http
+        python_a2a.server.http.create_flask_app = patched_create_flask_app
 
         # Run the agent bridge server
         run_server(self.bridge, host="0.0.0.0", port=PORT)
