@@ -76,12 +76,24 @@ def main():
     print("All messages will be answered by the mystical magic mirror!")
     print(f"Port: {port}")
 
-    if domain != "localhost":
-        # Production with SSL
+    # Check if SSL should be enabled (default: False for EC2 deployment)
+    enable_ssl = os.getenv("ENABLE_SSL", "false").lower() in ("true", "1", "yes")
+
+    if domain != "localhost" and enable_ssl:
+        # Production with SSL (requires certificates)
         nanda.start_server_api(
             os.getenv("ANTHROPIC_API_KEY"),
             domain,
-            port=port
+            port=port,
+            ssl=True
+        )
+    elif domain != "localhost":
+        # Production without SSL (for EC2 IP deployment)
+        nanda.start_server_api(
+            os.getenv("ANTHROPIC_API_KEY"),
+            domain,
+            port=port,
+            ssl=False  # Disable SSL - no certificates needed
         )
     else:
         # Development server - set PORT env var for NANDA to read
