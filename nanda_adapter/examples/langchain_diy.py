@@ -61,6 +61,10 @@ def main():
         print("Please set your ANTHROPIC_API_KEY environment variable")
         return
 
+    # Get configuration
+    domain = os.getenv("DOMAIN_NAME", "localhost")
+    port = int(os.getenv("PORT", "3737"))  # Default to 3737 (safe port)
+
     # Create magic mirror function
     mirror_logic = create_magic_mirror()
 
@@ -70,14 +74,18 @@ def main():
     # Start the server
     print("Starting Magic Mirror Agent with LangChain...")
     print("All messages will be answered by the mystical magic mirror!")
-
-    domain = os.getenv("DOMAIN_NAME", "localhost")
+    print(f"Port: {port}")
 
     if domain != "localhost":
         # Production with SSL
-        nanda.start_server_api(os.getenv("ANTHROPIC_API_KEY"), domain)
+        nanda.start_server_api(
+            os.getenv("ANTHROPIC_API_KEY"),
+            domain,
+            port=port
+        )
     else:
-        # Development server
+        # Development server - set PORT env var for NANDA to read
+        os.environ["PORT"] = str(port)
         nanda.start_server()
 
 if __name__ == "__main__":
