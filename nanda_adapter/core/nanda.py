@@ -121,6 +121,7 @@ class NANDA:
         print(f"🔧 Using custom improvement logic: {self.improvement_logic.__name__}")
 
         # Patch the run_server to add chat UI
+        print("🔧 Patching Flask app to add /tasks/send chat UI...")
         from python_a2a.server.http import create_flask_app
         original_create_flask_app = create_flask_app
 
