@@ -983,16 +983,25 @@ class AgentBridge(A2AServer):
                     )
 
             else:
-                # Regular message - process locally
-                claude_response = (
-                    call_claude(
-                        user_text, additional_context, conversation_id, current_path
-                    )
-                    or user_text
-                )
-                formatted_response = f"[AGENT {agent_id}] {claude_response}"
+                # Regular message - process with custom improvement logic
+                print(f"#jinu - Processing regular message: {user_text[:50]}...")
 
-                # Return Claude's response to local terminal
+                # Use custom improvement logic if available, otherwise fall back to call_claude
+                if self.active_improver and self.active_improver != "default_claude":
+                    print(f"#jinu - Using custom improver: {self.active_improver}")
+                    improved_response = self.improve_message_direct(user_text) or user_text
+                else:
+                    print(f"#jinu - Using default Claude")
+                    improved_response = (
+                        call_claude(
+                            user_text, additional_context, conversation_id, current_path
+                        )
+                        or user_text
+                    )
+
+                formatted_response = f"[AGENT {agent_id}] {improved_response}"
+
+                # Return improved response to local terminal
                 return Message(
                     role=MessageRole.AGENT,
                     content=TextContent(text=formatted_response),
