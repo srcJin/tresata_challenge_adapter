@@ -141,22 +141,42 @@ def main():
     # Check if SSL should be enabled (default: False for EC2 deployment)
     enable_ssl = os.getenv("ENABLE_SSL", "false").lower() in ("true", "1", "yes")
 
+    # Get API port from environment or use default
+    api_port = int(os.getenv("API_PORT", "6001"))
+
     if domain != "localhost" and enable_ssl:
         # Production with SSL (requires certificates)
-        nanda.start_server_api(
-            os.getenv("ANTHROPIC_API_KEY"), domain, port=port, ssl=True
-        )
-    elif domain != "localhost":
-        # Production without SSL (for EC2 IP deployment)
+        print(f"🔐 Starting HTTPS server on {domain}")
+        print(f"   - Agent Bridge (A2A): https://{domain}:{port}/a2a")
+        print(f"   - API Server: https://{domain}:{api_port}")
         nanda.start_server_api(
             os.getenv("ANTHROPIC_API_KEY"),
             domain,
             port=port,
-            ssl=False,  # Disable SSL - no certificates needed
+            api_port=api_port,
+            ssl=True
+        )
+    elif domain != "localhost":
+        # Production without SSL (for EC2 IP deployment)
+        print(f"🌐 Starting HTTP server on {domain}")
+        print(f"   - Agent Bridge (A2A): http://{domain}:{port}/a2a")
+        print(f"   - API Server: http://{domain}:{api_port}")
+        print(f"   - API Health: http://{domain}:{api_port}/api/health")
+        print(f"   - API Send: http://{domain}:{api_port}/api/send")
+        print(f"   - API Render: http://{domain}:{api_port}/api/render")
+        print(f"\n⚠️  Make sure EC2 Security Group allows inbound traffic on ports {port} and {api_port}")
+        nanda.start_server_api(
+            os.getenv("ANTHROPIC_API_KEY"),
+            domain,
+            port=port,
+            api_port=api_port,
+            ssl=False  # Disable SSL - no certificates needed
         )
     else:
         # Development server - set PORT env var for NANDA to read
         os.environ["PORT"] = str(port)
+        print(f"🏠 Starting local development server")
+        print(f"   - Agent Bridge: http://localhost:{port}/a2a")
         nanda.start_server()
 
 
