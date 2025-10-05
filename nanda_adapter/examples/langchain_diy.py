@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import os
+import threading
 from pathlib import Path
 from dotenv import load_dotenv
 from nanda_adapter import NANDA
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_anthropic import ChatAnthropic
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 # Load environment variables from .env file at project root
 # Looks for .env in: tresata_challenge/ (project root)
@@ -70,6 +73,38 @@ def main():
 
     # Initialize NANDA with magic mirror logic
     nanda = NANDA(mirror_logic)
+
+    # Create a separate Flask app for the chat endpoint
+    chat_app = Flask(__name__)
+    CORS(chat_app)
+
+    @chat_app.route('/api/chat', methods=['POST'])
+    def chat_endpoint():
+        """Direct chat endpoint that uses the magic mirror logic"""
+        try:
+            data = request.get_json()
+            message = data.get('message', '')
+
+            if not message:
+                return jsonify({'error': 'No message provided'}), 400
+
+            # Call the magic mirror logic directly
+            print(f"[Chat API] Received: {message}")
+            response = mirror_logic(message)
+            print(f"[Chat API] Response: {response[:100]}...")
+
+            return jsonify({'response': response})
+        except Exception as e:
+            print(f"Error in chat endpoint: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    # Start chat API in a separate thread
+    def run_chat_api():
+        chat_app.run(host='0.0.0.0', port=port+1, debug=False)
+
+    chat_thread = threading.Thread(target=run_chat_api, daemon=True)
+    chat_thread.start()
+    print(f"✨ Magic Mirror Chat API started on port {port+1}")
 
     # Start the server
     print("Starting Magic Mirror Agent with LangChain...")
