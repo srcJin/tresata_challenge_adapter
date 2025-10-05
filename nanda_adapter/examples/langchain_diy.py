@@ -12,16 +12,19 @@ from flask_cors import CORS
 
 # Load environment variables from .env file at project root
 # Looks for .env in: tresata_challenge/ (project root)
-env_path = Path(__file__).parent.parent.parent.parent / '.env'
+env_path = Path(__file__).parent.parent.parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
+
 
 def create_magic_mirror():
     """Create a LangChain-powered magic mirror function"""
 
-    # Initialize the LLM
+    # Initialize the LLM with better timeout and retry settings
     llm = ChatAnthropic(
         api_key=os.getenv("ANTHROPIC_API_KEY"),
-        model="claude-3-haiku-20240307"
+        model="claude-3-haiku-20240307",
+        timeout=60.0,  # Increase timeout
+        max_retries=3,  # Retry on failures
     )
 
     # Create a prompt template for magic mirror transformation
@@ -39,7 +42,7 @@ def create_magic_mirror():
 
         Query: {message}
 
-        Magic Mirror's poetic response (in verse):"""
+        Magic Mirror's poetic response (in verse):""",
     )
 
     # Create the chain
@@ -47,14 +50,38 @@ def create_magic_mirror():
 
     def mirror_improvement(message_text: str) -> str:
         """Transform message to magic mirror response"""
-        try:
-            result = chain.invoke({"message": message_text})
-            return result.strip()
-        except Exception as e:
-            print(f"Error in magic mirror: {e}")
-            return f"Mirror, mirror on the wall... {message_text}"  # Fallback response
+        import time
+
+        max_attempts = 2
+
+        for attempt in range(max_attempts):
+            try:
+                print(
+                    f"[Mirror] Calling Claude API (attempt {attempt + 1}/{max_attempts})..."
+                )
+                result = chain.invoke({"message": message_text})
+                print(f"[Mirror] Success! Got {len(result)} characters")
+                return result.strip()
+            except Exception as e:
+                error_msg = str(e)
+                print(f"[Mirror] Error on attempt {attempt + 1}: {error_msg}")
+
+                # Wait before retry
+                if attempt < max_attempts - 1:
+                    wait_time = 2**attempt  # Exponential backoff: 1s, 2s
+                    print(f"[Mirror] Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                else:
+                    # Final fallback - create a simple poetic response
+                    print(f"[Mirror] All attempts failed, using fallback response")
+                    return f"""Mirror, mirror, shining bright,
+I hear your query in the night.
+Though mystic powers fade and fall,
+I sense your question, "{message_text}"
+And wish I could answer all."""
 
     return mirror_improvement
+
 
 def main():
     """Main function to start the magic mirror agent"""
@@ -78,29 +105,29 @@ def main():
     chat_app = Flask(__name__)
     CORS(chat_app)
 
-    @chat_app.route('/api/chat', methods=['POST'])
+    @chat_app.route("/api/chat", methods=["POST"])
     def chat_endpoint():
         """Direct chat endpoint that uses the magic mirror logic"""
         try:
             data = request.get_json()
-            message = data.get('message', '')
+            message = data.get("message", "")
 
             if not message:
-                return jsonify({'error': 'No message provided'}), 400
+                return jsonify({"error": "No message provided"}), 400
 
             # Call the magic mirror logic directly
             print(f"[Chat API] Received: {message}")
             response = mirror_logic(message)
             print(f"[Chat API] Response: {response[:100]}...")
 
-            return jsonify({'response': response})
+            return jsonify({"response": response})
         except Exception as e:
             print(f"Error in chat endpoint: {e}")
-            return jsonify({'error': str(e)}), 500
+            return jsonify({"error": str(e)}), 500
 
     # Start chat API in a separate thread
     def run_chat_api():
-        chat_app.run(host='0.0.0.0', port=port+1, debug=False)
+        chat_app.run(host="0.0.0.0", port=port + 1, debug=False)
 
     chat_thread = threading.Thread(target=run_chat_api, daemon=True)
     chat_thread.start()
@@ -117,10 +144,7 @@ def main():
     if domain != "localhost" and enable_ssl:
         # Production with SSL (requires certificates)
         nanda.start_server_api(
-            os.getenv("ANTHROPIC_API_KEY"),
-            domain,
-            port=port,
-            ssl=True
+            os.getenv("ANTHROPIC_API_KEY"), domain, port=port, ssl=True
         )
     elif domain != "localhost":
         # Production without SSL (for EC2 IP deployment)
@@ -128,12 +152,13 @@ def main():
             os.getenv("ANTHROPIC_API_KEY"),
             domain,
             port=port,
-            ssl=False  # Disable SSL - no certificates needed
+            ssl=False,  # Disable SSL - no certificates needed
         )
     else:
         # Development server - set PORT env var for NANDA to read
         os.environ["PORT"] = str(port)
         nanda.start_server()
+
 
 if __name__ == "__main__":
     main()
